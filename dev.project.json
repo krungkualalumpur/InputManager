@@ -1,0 +1,16 @@
+{
+	"name": "input-util",
+	"tree": {
+		"$className": "DataModel",
+		"ReplicatedStorage": {
+			"$className": "ReplicatedStorage",
+			"Packages": {
+				"$className": "Folder",
+				"$path": "Packages",
+				"zone": {
+					"$path": "src"
+				}
+			}
+		}
+	}
+}

@@ -1,0 +1,9 @@
+# Project place file
+/InputUtil.rbxlx
+/Packages
+/sourcemap.json
+
+/*.lock
+# Roblox Studio lock files
+/*.rbxlx.lock
+/*.rbxl.lock
