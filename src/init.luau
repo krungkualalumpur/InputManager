@@ -129,7 +129,7 @@ function manager:Start()
 					typeof(key) == "EnumItem"
 					and (
 						(key:IsA("KeyCode") and not UserInputService:IsKeyDown(key))
-						or (key:IsA("UserInputType") and UserInputService:IsMouseButtonPressed(key))
+						or (key:IsA("UserInputType") and not UserInputService:IsMouseButtonPressed(key))
 					)
 				then --check #1
 					_isPressingAll = false
