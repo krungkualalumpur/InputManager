@@ -137,14 +137,12 @@ function manager:Start()
 					if pressedInputInfo then
 						pressedInputInfo.IsPressing = false
 					end
-					--break
 				elseif (typeof(key) == "string" and key == "Touch") and not isTouching then --check #2
 					_isPressingAll = false
 
 					if pressedInputInfo then
 						pressedInputInfo.IsPressing = false
 					end
-					--break
 				else
 					local _pressedInputInfo: any
 					if not pressedInputInfo then
@@ -178,7 +176,6 @@ function manager:Start()
 					return a.Timestamp < b.Timestamp
 				end)
 
-				--table.insert(pressedInputsInOrder, input)
 				for k, v in pairs(filteredActives) do
 					local isPressed = false
 
@@ -229,12 +226,6 @@ function manager:Start()
 					db = false
 				end
 			else
-				--if input.InputEventType == "Hold" then
-				--	local cleanup = input.OnBeginCallback()
-				--	if cleanup then
-				--		cleanup()
-				--	end
-				--end
 				db = false
 			end
 		end
