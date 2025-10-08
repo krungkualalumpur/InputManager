@@ -15,6 +15,7 @@ type InputEventType = "Toggle" | "Hold" | "Release"
 export type CustomInputObject = {
 	Disabled: boolean,
 	IsActive: boolean,
+	Debounce: boolean,
 	Keys: { Key },
 	InputEventType: InputEventType,
 	OnBeginCallback: () -> (() -> ())?,
@@ -60,6 +61,8 @@ manager.__index = manager
 function createCustomInputObject(
 	disabled: boolean,
 	isActive: boolean,
+	debounce: boolean,
+
 	keys: { Enum.KeyCode | Enum.UserInputType },
 	inputEventType: InputEventType,
 	onBeginCallback: () -> (() -> ())?
@@ -67,6 +70,8 @@ function createCustomInputObject(
 	return {
 		Disabled = disabled,
 		IsActive = isActive,
+		Debounce = debounce,
+
 		Keys = keys,
 		InputEventType = inputEventType,
 		OnBeginCallback = onBeginCallback,
@@ -101,7 +106,6 @@ function manager.new()
 end
 
 function manager:Start()
-	local db = false
 	local isTouching = false
 	local isInGpe = false
 	--local isPressingAll = false
@@ -167,7 +171,7 @@ function manager:Start()
 				local filteredActives = {}
 
 				for _, v in pairs(pressedInputsInOrder) do
-					if v.IsPressing then
+					if v.IsPressing and table.find(input.Keys, v.CustomInput) then
 						table.insert(filteredActives, v)
 					end
 				end
@@ -176,11 +180,11 @@ function manager:Start()
 					return a.Timestamp < b.Timestamp
 				end)
 
-				for k, v in pairs(filteredActives) do
+				for k, v in pairs(input.Keys) do
 					local isPressed = false
 
-					for k2, v2 in pairs(input.Keys) do
-						if (k == k2) and v.CustomInput == v2 then
+					for k2, v2 in pairs(filteredActives) do
+						if (k == k2) and v == v2.CustomInput then
 							isPressed = true
 							break
 						end
@@ -192,41 +196,50 @@ function manager:Start()
 					end
 				end
 
-				if _isPressingAll == true then
-					input.IsActive = _isPressingAll
-				end
+				-- if _isPressingAll == true then
+				-- 	input.IsActive = _isPressingAll
+				-- end
 			end
 
-			if input.Disabled == false and input.IsActive then
+			input.IsActive = _isPressingAll -- new
+
+			-- if input.Keys[1] == Enum.KeyCode.D then
+			-- 	print(input)
+			-- end
+
+			if input.Disabled == false then
 				if input.InputEventType == "Toggle" then
-					input.IsActive = false
-					if db == false then
-						db = true
+					-- input.IsActive = false
+					if input.Debounce == false and input.IsActive then
+						input.Debounce = true
 						input.OnBeginCallback()
-					end
-					if _isPressingAll == false then
-						db = false
+					elseif input.IsActive == false then
+						input.Debounce = false
 					end
 				elseif input.InputEventType == "Hold" then
-					local cleanup = input.OnBeginCallback()
+					local cleanup = if input.IsActive or (not input.IsActive and not input.Debounce)
+						then input.OnBeginCallback()
+						else nil
 
-					if not _isPressingAll then
-						input.IsActive = false
+					if input.IsActive then
+						input.Debounce = false
+					elseif not input.Debounce then
+						input.Debounce = true
 						if cleanup then
 							cleanup()
 						end
 					end
-					db = false
+					-- input.Debounce = false
 				elseif input.InputEventType == "Release" then
-					if input.IsActive == true and _isPressingAll == false then
-						input.IsActive = false
-
+					if input.IsActive then
+						input.Debounce = false
+					elseif input.Debounce == false then
 						input.OnBeginCallback()
+
+						input.Debounce = true
 					end
-					db = false
+					-- input.Debounce = false
 				end
-			else
-				db = false
 			end
 		end
 	end))
@@ -259,6 +272,7 @@ function manager:RegisterNewInput(
 	self.RegisteredInputs[inputName] = createCustomInputObject(
 		false,
 		false,
+		if inputEventType == "Release" or inputEventType == "Hold" then true else false,
 		if typeof(keys) ~= "table" then { keys } else keys,
 		inputEventType,
 		onCallback or function()
