@@ -9,7 +9,7 @@ local Maid = require(script.Parent:WaitForChild("Maid"))
 --types
 type Maid = Maid.Maid
 
-type PlatformType = "Keyboard" | "Mobile" | "Console"
+type Device = "Keyboard" | "Mobile" | "Console"
 type InputEventType = "Toggle" | "Hold" | "Release"
 
 export type CustomInputObject = {
@@ -29,12 +29,14 @@ export type InputManager = {
 
 	new: () -> InputManager,
 
+	getDevice: () -> Device,
+
 	Start: (InputManager) -> (),
 	RegisterNewInput: (
 		InputManager,
 
 		inputName: string,
-		platformType: PlatformType,
+		platformType: Device,
 		keys: { Key },
 		inputEventType: InputEventType,
 		onCallback: () -> () -> ()
@@ -72,6 +74,21 @@ function createCustomInputObject(
 end
 
 manager.RegisteredInputs = {} :: { [string]: CustomInputObject }
+
+function manager.getDevice()
+	local TouchEnabled = UserInputService.TouchEnabled
+	local KeyboardEnabled = UserInputService.KeyboardEnabled
+	local MouseEnabled = UserInputService.MouseEnabled
+	local GamepadEnabled = UserInputService.GamepadEnabled
+
+	if GamepadEnabled then
+		return "Console"
+	elseif TouchEnabled and not (KeyboardEnabled or MouseEnabled) then
+		return "Mobile"
+	else
+		return "Keyboard"
+	end
+end
 
 function manager.new()
 	local self: InputManager = setmetatable({}, manager) :: any
@@ -241,7 +258,7 @@ end
 
 function manager:RegisterNewInput(
 	inputName: string,
-	platformType: PlatformType,
+	platformType: Device,
 	keys: Key | { [number]: Key },
 	inputEventType: InputEventType,
 	onCallback: () -> () -> ()?
