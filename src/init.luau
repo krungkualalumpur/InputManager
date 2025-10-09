@@ -122,7 +122,7 @@ function manager:Start()
 	end
 
 	self._Maid:GiveTask(RunService.Heartbeat:Connect(function()
-		for _, input in pairs(manager.RegisteredInputs) do
+		for _, input in pairs(self.RegisteredInputs) do
 			local _isPressingAll = not isInGpe and #input.Keys > 0
 
 			for _, key: Key in pairs(input.Keys :: any) do
