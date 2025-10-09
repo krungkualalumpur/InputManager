@@ -78,8 +78,6 @@ function createCustomInputObject(
 	}
 end
 
-manager.RegisteredInputs = {} :: { [string]: CustomInputObject }
-
 function manager.getDevice()
 	local TouchEnabled = UserInputService.TouchEnabled
 	local KeyboardEnabled = UserInputService.KeyboardEnabled
@@ -99,6 +97,7 @@ function manager.new()
 	local self: InputManager = setmetatable({}, manager) :: any
 
 	self._Maid = Maid.new()
+	self.RegisteredInputs = {} :: { [string]: CustomInputObject }
 
 	self:Start()
 
