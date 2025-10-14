@@ -3,6 +3,8 @@
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local ContextActionService = game:GetService("ContextActionService")
+
+local Players = game:GetService("Players")
 --packages
 local Maid = require(script.Parent:WaitForChild("Maid"))
 --modules
@@ -16,11 +18,16 @@ export type CustomInputObject = {
 	Disabled: boolean,
 	IsActive: boolean,
 	Debounce: boolean,
+
+	LastInputActive: number,
+
+	Device: Device,
+
 	Keys: { Key },
 	InputEventType: InputEventType,
-	OnBeginCallback: () -> (() -> ())?,
+	OnBeginCallback: (dt: number, delta: Vector3) -> (() -> ())?,
 }
-export type Key = Enum.KeyCode | Enum.UserInputType | "Touch"
+export type Key = Enum.KeyCode | Enum.UserInputType | "Touch" | "JoystickTouch1" | "JoystickTouch2"
 export type InputManager = {
 	__index: InputManager,
 
@@ -40,7 +47,7 @@ export type InputManager = {
 		platformType: Device,
 		keys: { Key },
 		inputEventType: InputEventType,
-		onCallback: () -> () -> ()
+		onCallback: (dt: number, delta: Vector3) -> () -> ()
 	) -> (),
 	ToggleInput: (InputManager, inputName: string, toggle: boolean) -> (),
 	--RegisterNewContextInput : (
@@ -53,6 +60,7 @@ export type InputManager = {
 --remotes
 --variables
 --references
+local player = Players.LocalPlayer
 --local functions
 --class
 local manager: InputManager = {} :: any
@@ -63,14 +71,22 @@ function createCustomInputObject(
 	isActive: boolean,
 	debounce: boolean,
 
+	lastInputActive: number,
+
+	device: Device,
+
 	keys: { Enum.KeyCode | Enum.UserInputType },
 	inputEventType: InputEventType,
-	onBeginCallback: () -> (() -> ())?
+	onBeginCallback: (dt: number, delta: Vector3) -> (() -> ())?
 ): CustomInputObject
 	return {
 		Disabled = disabled,
 		IsActive = isActive,
 		Debounce = debounce,
+
+		Device = device,
+
+		LastInputActive = lastInputActive,
 
 		Keys = keys,
 		InputEventType = inputEventType,
@@ -105,14 +121,18 @@ function manager.new()
 end
 
 function manager:Start()
+	local deltaV3 = Vector3.new()
+	local mouse = player:GetMouse()
+
 	local isTouching = false
+	local isJoystick1, isJoystick2 = false, false
 	local isInGpe = false
 	--local isPressingAll = false
 	local pressedInputsInOrder: { [number]: { CustomInput: Key, Timestamp: number, IsPressing: boolean } } = {}
 
-	local function getPressedInputInfo(
-		customInput: Enum.KeyCode | Enum.UserInputType | "Touch"
-	): { CustomInput: Key, Timestamp: number, IsPressing: boolean }?
+	local mousePosV30 = Vector3.new(mouse.X, mouse.Y, 0)
+
+	local function getPressedInputInfo(customInput: Key): { CustomInput: Key, Timestamp: number, IsPressing: boolean }?
 		for _, v in pairs(pressedInputsInOrder) do
 			if customInput == v.CustomInput then
 				return v
@@ -123,16 +143,22 @@ function manager:Start()
 
 	self._Maid:GiveTask(RunService.Heartbeat:Connect(function()
 		for _, input in pairs(self.RegisteredInputs) do
-			local _isPressingAll = not isInGpe and #input.Keys > 0
+			local _isPressingAll = if self.getDevice() == input.Device
+				then ((if self.getDevice() == "Console" then true else not isInGpe) and #input.Keys > 0)
+				else false
 
 			for _, key: Key in pairs(input.Keys :: any) do
 				local pressedInputInfo = getPressedInputInfo(key)
-
 				if
 					typeof(key) == "EnumItem"
 					and (
-						(key:IsA("KeyCode") and not UserInputService:IsKeyDown(key))
-						or (key:IsA("UserInputType") and not UserInputService:IsMouseButtonPressed(key))
+						(
+							key:IsA("KeyCode")
+							and (
+								not UserInputService:IsKeyDown(key)
+								and not UserInputService:IsGamepadButtonDown(Enum.UserInputType.Gamepad1, key)
+							)
+						) or (key:IsA("UserInputType") and not UserInputService:IsMouseButtonPressed(key))
 					)
 				then --check #1
 					_isPressingAll = false
@@ -141,6 +167,18 @@ function manager:Start()
 						pressedInputInfo.IsPressing = false
 					end
 				elseif (typeof(key) == "string" and key == "Touch") and not isTouching then --check #2
+					_isPressingAll = false
+
+					if pressedInputInfo then
+						pressedInputInfo.IsPressing = false
+					end
+				elseif (typeof(key) == "string" and key == "JoystickTouch1") and not isJoystick1 then --check #2
+					_isPressingAll = false
+
+					if pressedInputInfo then
+						pressedInputInfo.IsPressing = false
+					end
+				elseif (typeof(key) == "string" and key == "JoystickTouch2") and not isJoystick2 then --check #2
 					_isPressingAll = false
 
 					if pressedInputInfo then
@@ -211,29 +249,53 @@ function manager:Start()
 					-- input.IsActive = false
 					if input.Debounce == false and input.IsActive then
 						input.Debounce = true
-						input.OnBeginCallback()
+						input.LastInputActive = tick()
+						input.OnBeginCallback(0, deltaV3)
 					elseif input.IsActive == false then
 						input.Debounce = false
 					end
 				elseif input.InputEventType == "Hold" then
+					local lastInputActive = if input.IsActive and input.Debounce then tick() else input.LastInputActive
+
+					local _deltaV3 = if input.IsActive and input.Debounce
+						then deltaV3
+						else (if (
+								(
+									UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
+									or UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
+								) or isTouching
+							)
+							then (Vector3.new(mouse.X, mouse.Y, 0) - mousePosV30)
+							else deltaV3)
+
 					local cleanup = if input.IsActive or (not input.IsActive and not input.Debounce)
-						then input.OnBeginCallback()
+						then input.OnBeginCallback(tick() - lastInputActive, _deltaV3)
 						else nil
 
 					if input.IsActive then
 						input.Debounce = false
+
+						input.LastInputActive = tick()
+						mousePosV30 = Vector3.new(mouse.X, mouse.Y, 0)
 					elseif not input.Debounce then
 						input.Debounce = true
 						if cleanup then
 							cleanup()
 						end
+
+						input.LastInputActive = tick()
+						mousePosV30 = Vector3.new(mouse.X, mouse.Y, 0)
 					end
 					-- input.Debounce = false
 				elseif input.InputEventType == "Release" then
 					if input.IsActive then
+						if input.Debounce == true then
+							input.LastInputActive = tick()
+						end
+
 						input.Debounce = false
 					elseif input.Debounce == false then
-						input.OnBeginCallback()
+						input.OnBeginCallback(tick() - input.LastInputActive, deltaV3)
 
 						input.Debounce = true
 					end
@@ -245,9 +307,24 @@ function manager:Start()
 
 	self._Maid:GiveTask(UserInputService.InputBegan:Connect(function(_, gpe)
 		isInGpe = gpe
+		deltaV3 = Vector3.new()
 	end))
-	self._Maid:GiveTask(UserInputService.InputEnded:Connect(function(_, gpe)
+	self._Maid:GiveTask(UserInputService.InputChanged:Connect(function(input, gpe)
+		deltaV3 = input.Delta
+		if input.KeyCode == Enum.KeyCode.Thumbstick1 then
+			isJoystick1 = true
+		elseif input.KeyCode == Enum.KeyCode.Thumbstick2 then
+			isJoystick2 = true
+		end
+	end))
+	self._Maid:GiveTask(UserInputService.InputEnded:Connect(function(input, gpe)
 		isInGpe = gpe
+		deltaV3 = Vector3.new()
+		if input.KeyCode == Enum.KeyCode.Thumbstick1 then
+			isJoystick1 = false
+		elseif input.KeyCode == Enum.KeyCode.Thumbstick2 then
+			isJoystick2 = false
+		end
 	end))
 
 	self._Maid:GiveTask(UserInputService.TouchStarted:Connect(function()
@@ -261,10 +338,10 @@ end
 
 function manager:RegisterNewInput(
 	inputName: string,
-	platformType: Device,
+	deviceType: Device,
 	keys: Key | { [number]: Key },
 	inputEventType: InputEventType,
-	onCallback: () -> () -> ()?
+	onCallback: (dt: number, delta: Vector3) -> () -> ()?
 )
 	assert(not self.RegisteredInputs[inputName], "Name already registered!")
 
@@ -272,9 +349,11 @@ function manager:RegisterNewInput(
 		false,
 		false,
 		if inputEventType == "Release" or inputEventType == "Hold" then true else false,
+		0,
+		deviceType,
 		if typeof(keys) ~= "table" then { keys } else keys,
 		inputEventType,
-		onCallback or function()
+		onCallback or function(dt: number, delta: Vector3)
 			return
 		end
 	)

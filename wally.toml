@@ -1,6 +1,6 @@
 [package]
 name = "krungkualalumpur/input-manager"
-version = "0.1.5"
+version = "0.2.0"
 description = "A package to handle cross-platform Roblox input"
 registry = "https://github.com/UpliftGames/wally-index"
 realm = "shared"
